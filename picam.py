@@ -1,52 +1,36 @@
-# kamera_picamera2.py
+# kamera_only.py
+from flask import Flask, Response
 from picamera2 import Picamera2
 import time
-import struct
 
-print("Picamera2 başlatılıyor...")
+app = Flask(__name__)
 
-# 1. Picamera2'yi başlat
+# Kamera
 picam2 = Picamera2()
-
-# 2. Konfigürasyon
-config = picam2.create_preview_configuration(
-    main={"size": (480, 320), "format": "RGB888"}
-)
+config = picam2.create_preview_configuration(main={"size": (640, 480)})
 picam2.configure(config)
-
-# 3. Başlat
 picam2.start()
-time.sleep(2)  # Kamera ısınması için
 
-print("Kamera hazır! SPI ekrana yazılıyor...")
+time.sleep(2)  # Kamera ısınması
 
-try:
-    with open('/dev/fb1', 'wb') as fb:
-        frame_count = 0
+def generate():
+    while True:
+        frame = picam2.capture_array()
         
-        while True:
-            # Frame yakala (VideoCapture yerine)
-            frame = picam2.capture_array()
-            
-            # SPI ekrana yaz
-            fb.seek(0)
-            for y in range(320):
-                for x in range(480):
-                    r, g, b = frame[y, x]
-                    # RGB565 formatına çevir
-                    pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-                    fb.write(struct.pack('H', pixel))
-            
-            # Ekrana durum yaz
-            frame_count += 1
-            if frame_count % 30 == 0:
-                print(f"Frame: {frame_count}")
-            
-            # FPS kontrolü
-            time.sleep(0.033)  # ~30 FPS
-                
-except KeyboardInterrupt:
-    print("\nDurduruldu.")
-finally:
-    picam2.stop()
-    print("Kamera durduruldu.")
+        # JPEG'e çevir (basit)
+        import cv2
+        ret, jpeg = cv2.imencode('.jpg', frame)
+        
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + 
+               jpeg.tobytes() + b'\r\n')
+        
+        time.sleep(0.033)
+
+@app.route('/')
+def index():
+    return Response(generate(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
