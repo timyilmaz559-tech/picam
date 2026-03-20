@@ -4,8 +4,8 @@
 #include <SPI.h>
 
 // ev ağı bilgileri
-const char* ssid="Cennet571";
-const char* pss="571cennet571";
+const char* ssid="SSID";
+const char* pss="PSWRD";
 
 // 1.8 tft lcd ekran
 int sclk = 13;
